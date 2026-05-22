@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kimi-K2.6 Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Phosphor Icons for a clean, modern look -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        
+        :root {
+            --bg-color: #ffffff;
+            --text-main: #0f0f0f;
+            --text-muted: #828282;
+            --accent: #d97757; /* Anthropic distinct color */
+            --input-bg: #f4f4f4;
+            --border-color: #e5e5e5;
+            --user-bubble: #f4f4f4;
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-main);
+            margin: 0; 
+            overflow: hidden; /* Prevent body scroll */
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .chat-layout { 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+        }
+
+        .header {
+            padding: 16px 24px;
+            font-weight: 500;
+            font-size: 16px;
+            letter-spacing: -0.01em;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid transparent;
+            transition: border-bottom 0.2s;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        .messages { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 24px 20px 48px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 32px; 
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 60vh;
+            color: var(--text-main);
+            gap: 20px;
+        }
+
+        .empty-state h1 {
+            font-size: 28px;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .empty-logo {
+            width: 48px;
+            height: 48px;
+            background: #fdf2f0;
+            color: var(--accent);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(217, 119, 87, 0.1);
+        }
+
+        .message { 
+            display: flex; 
+            gap: 16px; 
+            max-width: 100%;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* User Message styling */
+        .message.user {
+            justify-content: flex-end;
+            margin-left: 48px;
+        }
+        .message.user .content-wrapper {
+            background-color: var(--user-bubble);
+            padding: 12px 18px;
+            border-radius: 18px;
+            border-bottom-right-radius: 4px;
+            max-width: 100%;
+        }
+
+        /* Assistant Message styling */
+        .message.assistant {
+            justify-content: flex-start;
+            margin-right: 48px;
+        }
+        
+        .avatar { 
+            width: 28px; 
+            height: 28px; 
+            border-radius: 6px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: 600; 
+            flex-shrink: 0; 
+            font-size: 14px; 
+            margin-top: 4px;
+        }
+        .avatar.assistant { 
+            background-color: transparent; 
+            color: var(--accent); 
+        }
+
+        .content-wrapper {
+            max-width: 100%;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .message.assistant .content-wrapper {
+            padding-top: 5px; /* align with avatar */
+        }
+
+        .input-wrapper {
+            padding: 0 20px 24px;
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 30%);
+            position: relative;
+        }
+        
+        .input-container-inner {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Input Card Layout inspired by Claude */
+        .input-box {
+            position: relative;
+            background: var(--input-bg);
+            border: 1px solid transparent;
+            border-radius: 16px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .input-box:focus-within {
+            background: white;
+            border-color: var(--border-color);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+        }
+
+        .image-preview-container { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            padding: 8px 12px;
+            overflow-x: auto;
+        }
+        .image-preview { 
+            position: relative; 
+            display: inline-block; 
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 4px;
+            background: white;
+        }
+        .image-preview img { 
+            height: 56px; 
+            border-radius: 8px; 
+            object-fit: cover; 
+            display: block;
+        }
+        .remove-image { 
+            position: absolute; 
+            top: -6px; 
+            right: -6px; 
+            background: var(--text-main); 
+            color: white; 
+            border-radius: 50%; 
+            width: 20px; 
+            height: 20px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 14px; 
+            cursor: pointer; 
+            border: none;
+            transition: transform 0.2s;
+        }
+        .remove-image:hover { transform: scale(1.1); }
+
+        .input-row {
+            display: flex;
+            align-items: flex-end;
+            min-height: 44px;
+        }
+
+        .btn-attach {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+        .btn-attach:hover {
+            color: var(--text-main);
+            background: rgba(0,0,0,0.05);
+        }
+
+        textarea { 
+            flex: 1; 
+            border: none; 
+            outline: none; 
+            resize: none; 
+            max-height: 200px; 
+            min-height: 24px; 
+            padding: 10px 12px; 
+            font-family: inherit; 
+            font-size: 16px; 
+            background: transparent; 
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+        textarea::placeholder { color: #a1a1aa; }
+
+        .btn-send {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--accent);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 4px;
+            font-size: 18px;
+        }
+        .btn-send:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(217, 119, 87, 0.3);
+        }
+        .btn-send:disabled {
+            background: #e5e5e5;
+            color: white;
+            cursor: not-allowed;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 12px;
+        }
+
+        /* Markdown styling inside content */
+        .markdown { word-break: break-word; }
+        .markdown p { margin-bottom: 1em; }
+        .markdown p:last-child { margin-bottom: 0; }
+        .markdown a { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
+        .markdown pre { 
+            background: #f9f9f9; 
+            border: 1px solid var(--border-color);
+            color: var(--text-main); 
+            padding: 16px; 
+            border-radius: 12px; 
+            overflow-x: auto; 
+            margin-bottom: 1em; 
+            font-size: 14px;
+        }
+        .markdown code { 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+            font-size: 14px; 
+            background: #f4f4f4; 
+            padding: 3px 6px; 
+            border-radius: 6px; 
+            color: #eb5757;
+        }
+        .markdown pre code { background: transparent; padding: 0; color: inherit; }
+        .markdown ul, .markdown ol { margin-bottom: 1em; padding-left: 20px; }
+        
+        .loading-dots {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            height: 24px;
+        }
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="chat-layout">
+        <div class="header">
+            Kimi-K2.6
+        </div>
+        
+        <div class="messages-container" id="messages-container">
+            <div class="messages" id="messages">
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-logo">
+                        <i class="ph ph-sparkle"></i>
+                    </div>
+                    <h1>What can I help you with?</h1>
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-wrapper">
+            <div class="input-container-inner">
+                <div class="input-box">
+                    <div id="image-preview-area" class="image-preview-container" style="display: none;">
+                        <div class="image-preview">
+                            <img id="preview-img" src="" alt="Preview">
+                            <button class="remove-image" onclick="removeImage()">
+                                <i class="ph-bold ph-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <input type="file" id="file-upload" accept="image/*" style="display: none" onchange="previewImage(event)">
+                        <button class="btn-attach" onclick="document.getElementById('file-upload').click()" title="Attach file">
+                            <i class="ph ph-paperclip"></i>
+                        </button>
+                        <textarea id="user-input" rows="1" placeholder="Reply to Kimi..." onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
+                        <button class="btn-send" id="send-btn" onclick="sendMessage()" disabled>
+                            <i class="ph-bold ph-arrow-up"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-note">
+                Kimi-K2.6 runs on Fireworks AI via Hugging Face. Can make mistakes.
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Client, handle_file } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+
+        let client = null;
+        let history = [];
+        let selectedFile = null;
+
+        // Simple markdown configuration
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+
+        async function initClient() {
+            try {
+                client = await Client.connect(window.location.origin);
+            } catch (e) {
+                console.error("Failed to connect:", e);
+                const initError = document.createElement("div");
+                initError.style = "text-align: center; color: red; font-size: 14px; position: absolute; top: 16px; left: 0; right: 0;";
+                initError.innerText = "Error connecting to backend.";
+                document.body.appendChild(initError);
+            }
+        }
+
+        initClient();
+
+        window.autoResize = function(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+            
+            const btn = document.getElementById('send-btn');
+            if (textarea.value.trim() || selectedFile) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        };
+
+        window.handleKeydown = function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!document.getElementById('send-btn').disabled) {
+                    sendMessage();
+                }
+            }
+        };
+
+        window.previewImage = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('preview-img').src = e.target.result;
+                    document.getElementById('image-preview-area').style.display = 'flex';
+                    document.getElementById('send-btn').disabled = false;
+                }
+                reader.readAsDataURL(file);
+            }
+            e.target.value = '';
+        };
+
+        window.removeImage = function() {
+            selectedFile = null;
+            document.getElementById('image-preview-area').style.display = 'none';
+            autoResize(document.getElementById('user-input'));
+        };
+
+        function scrollToBottom() {
+            const container = document.getElementById('messages-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addMessage(role, text, imageSrc = null) {
+            const emptyState = document.getElementById('empty-state');
+            if (emptyState) emptyState.style.display = 'none';
+
+            const messagesDiv = document.getElementById('messages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            
+            let contentStr = '';
+            
+            if (imageSrc && role === 'user') {
+                contentStr += `<img src="${imageSrc}" style="max-width: 250px; border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--border-color);"><br>`;
+            }
+            
+            if (role === 'assistant') {
+                contentStr = `<div class="avatar assistant"><i class="ph-fill ph-sparkle" style="font-size: 24px;"></i></div>`;
+                contentStr += `<div class="content-wrapper">`;
+                if (text === 'loading') {
+                    contentStr += `<div class="loading-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+                } else {
+                    contentStr += `<div class="markdown">${marked.parse(text)}</div>`;
+                }
+                contentStr += `</div>`;
+            } else {
+                contentStr += `<div class="content-wrapper">`;
+                if (text) {
+                    contentStr += `<div style="white-space: pre-wrap;">${text}</div>`;
+                }
+                contentStr += `</div>`;
+            }
+
+            msgDiv.innerHTML = contentStr;
+            messagesDiv.appendChild(msgDiv);
+            scrollToBottom();
+            return msgDiv;
+        }
+
+        window.sendMessage = async function() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            
+            if (!text && !selectedFile) return;
+
+            const sendBtn = document.getElementById('send-btn');
+            sendBtn.disabled = true;
+            input.disabled = true;
+
+            // Display user message
+            let imgSrc = null;
+            if (selectedFile) {
+                imgSrc = document.getElementById('preview-img').src;
+            }
+            addMessage('user', text, imgSrc);
+            
+            const fileToSend = selectedFile;
+            const textToSend = text;
+
+            // Clear inputs
+            input.value = '';
+            input.style.height = 'auto';
+            removeImage();
+
+            // Add loading placeholder for assistant
+            const typingDiv = addMessage('assistant', 'loading');
+
+            try {
+                let fileData = null;
+                if (fileToSend) {
+                    fileData = handle_file(fileToSend);
+                }
+
+                if (!client) {
+                    await initClient();
+                }
+
+                // If client still failed, throw early
+                if (!client) throw new Error("Could not connect to backend router.");
+
+                const result = await client.predict("/chat", {
+                    message: textToSend,
+                    history: history,
+                    image: fileData
+                });
+
+                // Gradio return values
+                const responseText = result.data[0];
+                
+                // Update history
+                history.push([textToSend, responseText]);
+
+                // Replace typing element with actual response
+                typingDiv.querySelector('.content-wrapper').innerHTML = `<div class="markdown">${marked.parse(responseText)}</div>`;
+            } catch (err) {
+                console.error(err);
+                typingDiv.querySelector('.content-wrapper').innerHTML = `<div class="markdown" style="color: #ef4444;">It looks like an error occurred: ${err.message}. Ensure the python backend is running without errors.</div>`;
+            } finally {
+                sendBtn.disabled = false;
+                input.disabled = false;
+                input.focus();
+                autoResize(input);
+                scrollToBottom();
+            }
+        };
+    </script>
+</body>
+</html>
