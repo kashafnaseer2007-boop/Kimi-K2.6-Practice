@@ -85,4 +85,4 @@ Then save and run again.
 
 ---
 
-Made with ☕ and Python for developers who just want things to be dona.
+Made with ☕ and Python for developers who just want things to be working.
